@@ -32,17 +32,28 @@ export default async function StartupDashboardPage() {
     .eq("startup_id", user.id)
     .eq("direction", "right")
 
-  const { data: recentMatches } = await supabase
+  const { data: matches } = await supabase
     .from("matches")
-    .select(
-      `
-      *,
-      investor:investor_profiles!matches_investor_id_fkey(full_name, company_name, title)
-    `,
-    )
+    .select("*")
     .eq("startup_id", user.id)
     .order("matched_at", { ascending: false })
     .limit(5)
+
+  // Get investor profiles for the matches
+  let recentMatches = []
+  if (matches && matches.length > 0) {
+    const investorIds = matches.map((m) => m.investor_id)
+    const { data: investorProfiles } = await supabase
+      .from("investor_profiles")
+      .select("user_id, full_name, company_name, title")
+      .in("user_id", investorIds)
+
+    // Combine matches with investor profiles
+    recentMatches = matches.map((match) => ({
+      ...match,
+      investor: investorProfiles?.find((p) => p.user_id === match.investor_id),
+    }))
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">

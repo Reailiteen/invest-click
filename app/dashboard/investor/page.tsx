@@ -31,17 +31,28 @@ export default async function InvestorDashboardPage() {
     .select("*", { count: "exact", head: true })
     .eq("investor_id", user.id)
 
-  const { data: recentMatches } = await supabase
+  const { data: matches } = await supabase
     .from("matches")
-    .select(
-      `
-      *,
-      startup:startup_profiles!matches_startup_id_fkey(company_name, tagline, sector, logo_url)
-    `,
-    )
+    .select("*")
     .eq("investor_id", user.id)
     .order("matched_at", { ascending: false })
     .limit(5)
+
+  // Get startup profiles for the matches
+  let recentMatches = []
+  if (matches && matches.length > 0) {
+    const startupIds = matches.map((m) => m.startup_id)
+    const { data: startupProfiles } = await supabase
+      .from("startup_profiles")
+      .select("user_id, company_name, tagline, sector, logo_url")
+      .in("user_id", startupIds)
+
+    // Combine matches with startup profiles
+    recentMatches = matches.map((match) => ({
+      ...match,
+      startup: startupProfiles?.find((p) => p.user_id === match.startup_id),
+    }))
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
